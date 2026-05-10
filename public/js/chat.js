@@ -27,6 +27,9 @@
   const sidebarContent = document.getElementById('sidebar-content');
   const imageBtn = document.getElementById('image-btn');
   const mentionDropdown = document.getElementById('mention-dropdown');
+  const inviteBtn = document.getElementById('invite-btn');
+  const leaveGroupBtn = document.getElementById('leave-group-btn');
+  let currentGroupId = null;
 
   async function init() {
     try {
@@ -131,9 +134,12 @@
   // --- Chat Switching ---
   function switchChat(chatId, title, subtitle) {
     currentChat = chatId;
+    currentGroupId = chatId.startsWith('group:') ? chatId.replace('group:', '') : null;
     chatTitle.textContent = title;
     chatSubtitle.textContent = subtitle || '';
     closeChatBtn.classList.toggle('hidden', chatId === 'public');
+    inviteBtn.classList.toggle('hidden', !currentGroupId);
+    leaveGroupBtn.classList.toggle('hidden', !currentGroupId);
     delete unread[chatId];
     updateSidebarBadges();
     highlightSidebarItem(chatId);
@@ -621,6 +627,44 @@
   });
 
   closeChatBtn.addEventListener('click', switchToPublic);
+
+  inviteBtn.addEventListener('click', () => {
+    if (!currentGroupId) return;
+    const modal = document.getElementById('invite-modal');
+    modal.classList.remove('hidden');
+    const list = document.getElementById('invite-list');
+    list.innerHTML = '';
+    const onlineFriends = friends.filter(f => onlineUsers.includes(f.username));
+    if (onlineFriends.length === 0) {
+      list.innerHTML = '<li class="list-empty">没有可邀请的在线好友</li>';
+      return;
+    }
+    onlineFriends.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'search-result-item';
+      div.innerHTML = `<span>${f.username}</span>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn-small';
+      btn.textContent = '邀请';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = '已邀请';
+        await inviteToGroupAPI(currentGroupId, f.username);
+      });
+      div.appendChild(btn);
+      list.appendChild(div);
+    });
+  });
+
+  leaveGroupBtn.addEventListener('click', async () => {
+    if (!currentGroupId) return;
+    if (!confirm('确定退出该群聊？')) return;
+    const res = await fetch('/api/groups/' + currentGroupId + '/leave', { method: 'POST' });
+    if (res.ok) {
+      await loadGroups();
+      switchToPublic();
+    }
+  });
 
   logoutBtn.addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST' });
