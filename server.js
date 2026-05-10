@@ -12,7 +12,7 @@ async function main() {
   await db.init();
 
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
   app.use(cookieParser());
   app.use(express.static(path.join(__dirname, 'public')));
   app.use('/api', authRouter);
@@ -34,10 +34,11 @@ async function main() {
     }
 
     const username = session.username;
+    const userId = session.user_id;
     if (clients[username]) {
       clients[username].ws.close(4002, '已在其他设备登录');
     }
-    clients[username] = { ws, userId: session.user_id };
+    clients[username] = { ws, userId };
 
     broadcastUsers();
     broadcastSystem(`${username} 进入了聊天室`);
@@ -45,7 +46,7 @@ async function main() {
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString());
-        handleMessage(username, msg);
+        handleMessage(username, userId, msg);
       } catch {
         ws.send(JSON.stringify({ type: 'error', message: '消息格式错误' }));
       }
@@ -60,42 +61,150 @@ async function main() {
     });
   });
 
-  function handleMessage(from, msg) {
-    if (msg.type !== 'message') return;
-    const target = msg.to || 'public';
-    const content = msg.content;
-    if (!content || !content.trim()) return;
+  function handleMessage(from, userId, msg) {
+    switch (msg.type) {
+      case 'message': {
+        const target = msg.to || 'public';
+        const content = msg.content;
+        if (!content || !content.trim()) return;
 
-    const message = {
-      type: 'message',
-      from,
-      to: target,
-      content: content.trim(),
-      time: new Date().toISOString()
-    };
+        if (target === 'public') {
+          const message = {
+            type: 'message',
+            from,
+            to: 'public',
+            content: content.trim(),
+            time: new Date().toISOString()
+          };
+          broadcast(message);
+          checkMentions(message);
+          return;
+        }
 
-    if (target === 'public') {
-      broadcast(message);
-    } else {
-      const recipient = clients[target];
-      if (recipient) {
-        recipient.ws.send(JSON.stringify(message));
+        if (target.startsWith('group:')) {
+          const groupId = target.split(':')[1];
+          if (!db.isGroupMember(groupId, userId)) {
+            wsSend(from, { type: 'error', message: '你不是该群成员' });
+            return;
+          }
+          const group = db.getGroupById(groupId);
+          if (!group) {
+            wsSend(from, { type: 'error', message: '群组不存在' });
+            return;
+          }
+          const message = {
+            type: 'group_message',
+            group: groupId,
+            groupName: group.name,
+            from,
+            content: content.trim(),
+            time: new Date().toISOString()
+          };
+          const members = db.getGroupMembers(groupId);
+          const data = JSON.stringify(message);
+          for (const member of members) {
+            const client = clients[member.username];
+            if (client) {
+              try { client.ws.send(data); } catch {}
+            }
+          }
+          checkMentions(message);
+          return;
+        }
+
+        const targetUser = db.getUserByUsername(target);
+        if (!targetUser) {
+          wsSend(from, { type: 'error', message: '用户不存在' });
+          return;
+        }
+        if (!db.areFriends(userId, targetUser.id)) {
+          wsSend(from, { type: 'error', message: '你们不是好友，无法私聊' });
+          return;
+        }
+
+        const message = {
+          type: 'private_message',
+          from,
+          to: target,
+          content: content.trim(),
+          time: new Date().toISOString()
+        };
+        const data = JSON.stringify(message);
+        const recipient = clients[target];
+        if (recipient) {
+          try { recipient.ws.send(data); } catch {}
+        }
+        const sender = clients[from];
+        if (sender) {
+          try { sender.ws.send(data); } catch {}
+        }
+        break;
       }
-      const sender = clients[from];
-      if (sender) {
-        sender.ws.send(JSON.stringify(message));
+
+      case 'friend_request': {
+        const targetUser = db.getUserByUsername(msg.to);
+        if (!targetUser) {
+          wsSend(from, { type: 'error', message: '用户不存在' });
+          return;
+        }
+        const recipient = clients[msg.to];
+        if (recipient) {
+          try {
+            recipient.ws.send(JSON.stringify({
+              type: 'friend_request',
+              from
+            }));
+          } catch {}
+        }
+        break;
       }
+
+      case 'friend_accept': {
+        const recipient = clients[msg.to];
+        if (recipient) {
+          try {
+            recipient.ws.send(JSON.stringify({
+              type: 'friend_accept',
+              from
+            }));
+          } catch {}
+        }
+        break;
+      }
+    }
+  }
+
+  function checkMentions(msg) {
+    const mentionRegex = /@(\w{2,20})/g;
+    let match;
+    while ((match = mentionRegex.exec(msg.content)) !== null) {
+      const mentioned = match[1];
+      const client = clients[mentioned];
+      if (client && mentioned !== msg.from) {
+        try {
+          client.ws.send(JSON.stringify({
+            type: 'mention',
+            from: msg.from,
+            chat: msg.to || msg.group || 'public',
+            content: msg.content,
+            time: msg.time
+          }));
+        } catch {}
+      }
+    }
+  }
+
+  function wsSend(username, msg) {
+    const client = clients[username];
+    if (client) {
+      try { client.ws.send(JSON.stringify(msg)); } catch {}
     }
   }
 
   function broadcast(msg) {
     const data = JSON.stringify(msg);
     for (const name in clients) {
-      try {
-        clients[name].ws.send(data);
-      } catch {
-        // ignore disconnected clients
-      }
+      try { clients[name].ws.send(data); } catch {}
     }
   }
 

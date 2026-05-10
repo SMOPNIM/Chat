@@ -17,23 +17,111 @@
         <span class="user-avatar" id="current-user-avatar"></span>
         <span id="current-username"></span>
       </div>
-      <div class="sidebar-section">
-        <h3>在线用户</h3>
-        <ul id="user-list"></ul>
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab active" data-tab="friends">好友</button>
+        <button class="sidebar-tab" data-tab="groups">群组</button>
+        <button class="sidebar-tab" data-tab="online">在线</button>
+      </div>
+      <div class="sidebar-content" id="sidebar-content">
+        <div class="tab-panel active" id="tab-friends">
+          <div class="tab-actions">
+            <button id="add-friend-btn" class="btn-small">+ 添加好友</button>
+            <button id="friend-requests-btn" class="btn-small">请求 <span id="request-count" class="hidden">(0)</span></button>
+          </div>
+          <div id="pending-requests-area" class="hidden">
+            <h4>待处理请求</h4>
+            <ul id="pending-requests-list"></ul>
+          </div>
+          <ul id="friends-list"><li class="list-empty">暂无好友</li></ul>
+        </div>
+        <div class="tab-panel" id="tab-groups">
+          <div class="tab-actions">
+            <button id="create-group-btn" class="btn-small">+ 创建群聊</button>
+          </div>
+          <ul id="groups-list"><li class="list-empty">暂无群组</li></ul>
+        </div>
+        <div class="tab-panel" id="tab-online">
+          <ul id="online-list"></ul>
+        </div>
       </div>
     </aside>
     <main class="main-content">
-      <div class="chat-header" id="chat-header">
-        <span id="chat-title">公共聊天室</span>
-        <button id="close-private-btn" class="btn-icon hidden" title="返回公共聊天室">✕</button>
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <span id="chat-title">公共聊天室</span>
+          <span id="chat-subtitle" class="chat-subtitle"></span>
+        </div>
+        <button id="close-chat-btn" class="btn-icon hidden" title="返回公共聊天室">✕</button>
       </div>
       <div class="messages" id="messages"></div>
       <div class="input-area">
-        <input type="text" id="message-input" placeholder="输入消息..." maxlength="500">
+        <button id="image-btn" class="btn-icon" title="发送图片">🖼</button>
+        <div class="input-wrapper">
+          <div id="mention-dropdown" class="mention-dropdown hidden"></div>
+          <textarea id="message-input" placeholder="输入消息... Shift+Enter 换行" maxlength="5000" rows="1"></textarea>
+        </div>
         <button id="send-btn" class="btn-primary">发送</button>
       </div>
     </main>
   </div>
+
+  <!-- Add Friend Modal -->
+  <div id="add-friend-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加好友</h3>
+        <button class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="search-user-input" placeholder="输入用户名搜索..." class="modal-input">
+        <ul id="search-results"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Friend Requests Modal -->
+  <div id="requests-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>好友请求</h3>
+        <button class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <ul id="requests-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Group Modal -->
+  <div id="create-group-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>创建群聊</h3>
+        <button class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="group-name-input" placeholder="输入群名..." class="modal-input" maxlength="30">
+        <button id="create-group-submit" class="btn-primary" style="margin-top:12px">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invite to Group Modal -->
+  <div id="invite-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>邀请好友加入群聊</h3>
+        <button class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <ul id="invite-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script src="/js/chat.js"></script>
 </body>
 </html>
