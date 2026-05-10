@@ -203,29 +203,32 @@
   function renderContent(text) {
     let html = escapeHtml(text);
 
-    // @mentions
     html = html.replace(/@(\w{2,20})/g, '<span class="mention">@$1</span>');
 
-    // LaTeX block: $$...$$
+    const blocks = [];
+    html = html.replace(/```[\s\S]*?```/g, m => { blocks.push(m); return `\x00CODEBLOCK${blocks.length - 1}\x00`; });
+    html = html.replace(/`[^`]+`/g, m => { blocks.push(m); return `\x00CODEBLOCK${blocks.length - 1}\x00`; });
+
     html = html.replace(/\$\$(.+?)\$\$/gs, (_, expr) => {
       try {
         return katex.renderToString(expr, { displayMode: true, throwOnError: false });
       } catch {
-        return `<span class="katex-error">$$${expr}$$</span>`;
+        return `$$${expr}$$`;
       }
     });
 
-    // LaTeX inline: $...$
     html = html.replace(/\$(.+?)\$/g, (_, expr) => {
       try {
         return katex.renderToString(expr, { displayMode: false, throwOnError: false });
       } catch {
-        return `<span class="katex-error">$${expr}$</span>`;
+        return `$${expr}$`;
       }
     });
 
-    // Markdown
+    html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
+
     html = marked.parse(html, { breaks: true, gfm: true });
+    html = DOMPurify.sanitize(html);
 
     return html;
   }
@@ -821,6 +824,17 @@
 
   document.querySelectorAll('.modal-close').forEach(btn => {
     btn.addEventListener('click', () => closeAllModals());
+  });
+
+  // Image click to zoom
+  messagesEl.addEventListener('click', (e) => {
+    const img = e.target.closest('.message-content img');
+    if (!img) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'image-preview-overlay';
+    overlay.innerHTML = `<img src="${img.src}" alt="${img.alt || ''}">`;
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
   });
 
   // Load pending requests on init
