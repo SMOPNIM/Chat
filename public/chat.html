@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="chat-page">
+  <div class="chat-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Chat</h2>
+        <button id="logout-btn" class="btn-icon" title="退出登录">✕</button>
+      </div>
+      <div class="sidebar-user">
+        <span class="user-avatar" id="current-user-avatar"></span>
+        <span id="current-username"></span>
+      </div>
+      <div class="sidebar-section">
+        <h3>在线用户</h3>
+        <ul id="user-list"></ul>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div class="chat-header" id="chat-header">
+        <span id="chat-title">公共聊天室</span>
+        <button id="close-private-btn" class="btn-icon hidden" title="返回公共聊天室">✕</button>
+      </div>
+      <div class="messages" id="messages"></div>
+      <div class="input-area">
+        <input type="text" id="message-input" placeholder="输入消息..." maxlength="500">
+        <button id="send-btn" class="btn-primary">发送</button>
+      </div>
+    </main>
+  </div>
+  <script src="/js/chat.js"></script>
+</body>
+</html>
