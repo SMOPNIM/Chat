@@ -14,6 +14,7 @@
 
   const messagesEl = document.getElementById('messages');
   const messageInput = document.getElementById('message-input');
+  const messagePreview = document.getElementById('message-preview');
   const sendBtn = document.getElementById('send-btn');
   const chatTitle = document.getElementById('chat-title');
   const chatSubtitle = document.getElementById('chat-subtitle');
@@ -26,6 +27,11 @@
   const onlineList = document.getElementById('online-list');
   const sidebarContent = document.getElementById('sidebar-content');
   const imageBtn = document.getElementById('image-btn');
+  const gifBtn = document.getElementById('gif-btn');
+  const gifPanel = document.getElementById('gif-panel');
+  const gifSearch = document.getElementById('gif-search');
+  const gifResults = document.getElementById('gif-results');
+  const gifLoading = document.getElementById('gif-loading');
   const mentionDropdown = document.getElementById('mention-dropdown');
   const inviteBtn = document.getElementById('invite-btn');
   const leaveGroupBtn = document.getElementById('leave-group-btn');
@@ -192,6 +198,7 @@
       const content = document.createElement('div');
       content.className = 'message-content';
       content.innerHTML = renderContent(msg.content);
+      processGifImages(content);
       div.appendChild(content);
 
       messagesEl.appendChild(div);
@@ -486,6 +493,7 @@
     messageInput.value = '';
     adjustTextarea();
     mentionDropdown.classList.add('hidden');
+    updatePreview();
   }
 
   // --- @Mention ---
@@ -535,8 +543,10 @@
   // --- Image Handling ---
   function handleImage(file) {
     if (!file || !file.type.startsWith('image/')) return;
-    if (file.size > 5 * 1024 * 1024) {
-      showNotification('图片不能超过 5MB');
+    const isGif = file.type === 'image/gif';
+    const maxSize = isGif ? 20 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showNotification(isGif ? 'GIF 不能超过 20MB' : '图片不能超过 5MB');
       return;
     }
     const reader = new FileReader();
@@ -550,6 +560,106 @@
       adjustTextarea();
     };
     reader.readAsDataURL(file);
+  }
+
+  // --- GIF Panel ---
+  let gifSearchTimer = null;
+
+  function openGifPanel() {
+    gifPanel.classList.remove('hidden');
+    gifResults.innerHTML = '<div class="gif-loading" id="gif-loading">加载中...</div>';
+    gifSearch.value = '';
+    gifSearch.focus();
+    fetchTrendingGifs();
+  }
+
+  function closeGifPanel() {
+    gifPanel.classList.add('hidden');
+    messageInput.focus();
+  }
+
+  function insertGif(gifUrl) {
+    const markdownImg = `![gif](${gifUrl})`;
+    const cursorPos = messageInput.selectionStart;
+    const text = messageInput.value;
+    messageInput.value = text.substring(0, cursorPos) + markdownImg + text.substring(cursorPos);
+    messageInput.focus();
+    adjustTextarea();
+    updatePreview();
+    closeGifPanel();
+  }
+
+  async function fetchTrendingGifs() {
+    try {
+      const res = await fetch('/api/gif/trending');
+      const data = await res.json();
+      renderGifResults(data.data);
+    } catch {
+      gifResults.innerHTML = '<div class="gif-error">加载失败</div>';
+    }
+  }
+
+  async function searchGifs(query) {
+    try {
+      const res = await fetch('/api/gif/search?q=' + encodeURIComponent(query));
+      const data = await res.json();
+      renderGifResults(data.data);
+    } catch {
+      gifResults.innerHTML = '<div class="gif-error">搜索失败</div>';
+    }
+  }
+
+  function renderGifResults(gifs) {
+    if (!gifs || gifs.length === 0) {
+      gifResults.innerHTML = '<div class="gif-empty">没有找到 GIF</div>';
+      return;
+    }
+    gifResults.innerHTML = '';
+    gifs.forEach(g => {
+      const img = document.createElement('img');
+      img.className = 'gif-result-item';
+      img.src = g.images.fixed_height_small.url;
+      img.alt = g.title || 'GIF';
+      img.loading = 'lazy';
+      img.addEventListener('click', () => insertGif(g.images.original.url));
+      gifResults.appendChild(img);
+    });
+  }
+
+  function processGifImages(container) {
+    container.querySelectorAll('img').forEach(img => {
+      const src = img.src;
+      if (!src || (!src.startsWith('data:image/gif') && !src.match(/\.gif(\?|$)/i))) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'gif-wrapper';
+
+      const badge = document.createElement('span');
+      badge.className = 'gif-badge';
+      badge.textContent = 'GIF';
+      wrapper.appendChild(badge);
+
+      const toggle = document.createElement('button');
+      toggle.className = 'gif-toggle';
+      toggle.textContent = '⏸';
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (img.dataset.paused === 'true') {
+          img.src = img.dataset.originalSrc;
+          img.dataset.paused = 'false';
+          toggle.textContent = '⏸';
+        } else {
+          img.dataset.originalSrc = img.src;
+          img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+          img.dataset.paused = 'true';
+          toggle.textContent = '▶';
+        }
+      });
+
+      img.parentNode.insertBefore(wrapper, img);
+      wrapper.appendChild(img);
+      wrapper.appendChild(toggle);
+    });
   }
 
   // --- UI Helpers ---
@@ -582,6 +692,19 @@
   function adjustTextarea() {
     messageInput.style.height = 'auto';
     messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+  }
+
+  let previewTimer = null;
+  function updatePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      const text = messageInput.value.trim();
+      if (!text) {
+        messagePreview.innerHTML = '<span class="preview-placeholder">预览</span>';
+        return;
+      }
+      messagePreview.innerHTML = renderContent(text);
+    }, 150);
   }
 
   // --- Modal Management ---
@@ -627,6 +750,7 @@
   messageInput.addEventListener('input', () => {
     checkMention(messageInput.value);
     adjustTextarea();
+    updatePreview();
   });
 
   closeChatBtn.addEventListener('click', switchToPublic);
@@ -776,6 +900,27 @@
       e.preventDefault();
       document.getElementById('create-group-submit').click();
     }
+  });
+
+  // GIF button
+  gifBtn.addEventListener('click', openGifPanel);
+
+  document.getElementById('gif-panel-close').addEventListener('click', closeGifPanel);
+
+  gifSearch.addEventListener('input', () => {
+    clearTimeout(gifSearchTimer);
+    const q = gifSearch.value.trim();
+    if (!q) {
+      gifResults.innerHTML = '<div class="gif-loading">加载中...</div>';
+      gifSearchTimer = setTimeout(fetchTrendingGifs, 300);
+      return;
+    }
+    gifResults.innerHTML = '<div class="gif-loading">搜索中...</div>';
+    gifSearchTimer = setTimeout(() => searchGifs(q), 400);
+  });
+
+  gifSearch.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeGifPanel();
   });
 
   // Image button

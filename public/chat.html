@@ -59,13 +59,29 @@
       </div>
       <div class="messages" id="messages"></div>
       <div class="input-area">
-        <button id="image-btn" class="btn-icon" title="发送图片">🖼</button>
-        <div class="input-wrapper">
-          <div id="mention-dropdown" class="mention-dropdown hidden"></div>
-          <textarea id="message-input" placeholder="输入消息... Shift+Enter 换行" maxlength="5000" rows="1"></textarea>
+        <div id="gif-panel" class="gif-panel hidden">
+          <div class="gif-panel-header">
+            <input type="text" id="gif-search" class="gif-search-input" placeholder="搜索 GIF..." maxlength="50">
+            <button id="gif-panel-close" class="modal-close">✕</button>
+          </div>
+          <div class="gif-panel-body" id="gif-results">
+            <div class="gif-loading" id="gif-loading">加载中...</div>
+          </div>
+        </div>
+        <div class="input-split">
+          <div class="input-split-left">
+            <button id="image-btn" class="btn-icon" title="发送图片">🖼</button>
+            <button id="gif-btn" class="btn-icon" title="GIF 动图">GIF</button>
+            <div class="input-wrapper">
+              <div id="mention-dropdown" class="mention-dropdown hidden"></div>
+              <textarea id="message-input" placeholder="输入消息... Shift+Enter 换行" maxlength="5000" rows="1"></textarea>
+            </div>
+          </div>
+          <div class="input-split-right">
+            <div id="message-preview"><span class="preview-placeholder">预览</span></div>
+          </div>
         </div>
         <button id="send-btn" class="btn-primary">发送</button>
-      </div>
     </main>
   </div>
 

@@ -1,10 +1,12 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { WebSocketServer } = require('ws');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const db = require('./db');
 const authRouter = require('./auth');
+const GIPHY_API_KEY = process.env.GIPHY_API_KEY || '';
 
 const clients = {};
 
@@ -16,6 +18,37 @@ async function main() {
   app.use(cookieParser());
   app.use(express.static(path.join(__dirname, 'public')));
   app.use('/api', authRouter);
+
+  function giphyFetch(path) {
+    return new Promise((resolve, reject) => {
+      https.get(`https://api.giphy.com${path}`, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch { reject(new Error('Invalid JSON')); }
+        });
+      }).on('error', reject);
+    });
+  }
+
+  app.get('/api/gif/trending', async (req, res) => {
+    if (!GIPHY_API_KEY) return res.json({ data: [] });
+    try {
+      const result = await giphyFetch(`/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=20&offset=${parseInt(req.query.offset) || 0}&rating=g`);
+      res.json(result);
+    } catch { res.json({ data: [] }); }
+  });
+
+  app.get('/api/gif/search', async (req, res) => {
+    if (!GIPHY_API_KEY) return res.json({ data: [] });
+    const q = req.query.q;
+    if (!q) return res.json({ data: [] });
+    try {
+      const result = await giphyFetch(`/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=20&offset=${parseInt(req.query.offset) || 0}&rating=g`);
+      res.json(result);
+    } catch { res.json({ data: [] }); }
+  });
 
   const server = http.createServer(app);
   const wss = new WebSocketServer({ server });
